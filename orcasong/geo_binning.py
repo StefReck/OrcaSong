@@ -67,7 +67,12 @@ def calculate_bin_edges(n_bins, det_geo, detx_filepath, do4d):
             z_bin_edges = np.linspace(geo_limits[0][2] - 4.665, geo_limits[1][2] + 4.665, num=n_bins_z + 1)  # Delta z = 9.329
 
         # calculate_bin_edges_test(dom_positions, y_bin_edges, z_bin_edges) # test disabled by default. Activate it, if you change the offsets in x/y/z-bin-edges
-
+	elif det_geo == 'Orca_7l_23m_h_9m_v':
+        x_bin_edges = np.linspace(geo_limits[0][0] - 9.95, geo_limits[1][0] + 9.95, num=n_bins[0] + 1) #try to get the lines in the bin center 9.95*2 = average x-separation of two lines
+        y_bin_edges = np.linspace(geo_limits[0][1] - 9.75, geo_limits[1][1] + 9.75, num=n_bins[1] + 1) # Delta y = 19.483
+        n_bins_z = n_bins[2] if do4d[1] != 'xzt-c' else n_bins[1] # n_bins = [xyz,t/c] or n_bins = [xzt,c]
+        z_bin_edges = np.linspace(geo_limits[0][2] - 4.665, geo_limits[1][2] + 4.665, num=n_bins_z + 1)  # Delta z = 9.329
+  
     else:
         raise ValueError('The specified detector geometry "' + str(det_geo) + '" is not available.')
 
