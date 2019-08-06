@@ -149,12 +149,15 @@ def convert_2d_numpy_hists_to_pdf_image(hists, t_start, t_end, pdf_2d_plots, eve
     fig = plt.figure(figsize=(10, 13))
     if event_track is not None:
         particle_type = {16: 'Tau', -16: 'Anti-Tau', 14: 'Muon', -14: 'Anti-Muon', 12: 'Electron', -12: 'Anti-Electron', 'isCC': ['NC', 'CC']}
-        event_info = {'event_id': str(int(event_track.event_id[0])), 'energy': str(event_track.energy[0]),
+        try:
+            event_info = {'event_id': str(int(event_track.event_id[0])), 'energy': str(event_track.energy[0]),
                       'particle_type': particle_type[int(event_track.particle_type[0])],
                       'interaction_type': particle_type['isCC'][int(event_track.is_cc[0])]}
-        title = event_info['particle_type'] + '-' + event_info['interaction_type'] + ', Event ID: ' + event_info['event_id'] + ', Energy: ' + event_info['energy'] + ' GeV'
-        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-        fig.suptitle(title, usetex=False, horizontalalignment='center', size='xx-large', bbox=props)
+            title = event_info['particle_type'] + '-' + event_info['interaction_type'] + ', Event ID: ' + event_info['event_id'] + ', Energy: ' + event_info['energy'] + ' GeV'
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+            fig.suptitle(title, usetex=False, horizontalalignment='center', size='xx-large', bbox=props)
+        except:
+            pass
 
     t_diff = t_end - t_start
 
