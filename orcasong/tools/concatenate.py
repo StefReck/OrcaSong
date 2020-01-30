@@ -51,10 +51,11 @@ class FileConcatenator:
 
         """
         input_files = []
-        for line in open(list_file):
-            filepath = line.rstrip('\n')
-            if filepath != "":
-                input_files.append(filepath)
+        with open(list_file) as f:
+            for line in f:
+                filepath = line.rstrip('\n')
+                if filepath != "":
+                    input_files.append(filepath)
         if n_files is not None:
             input_files = input_files[:n_files]
         return cls(input_files, **kwargs)
@@ -116,7 +117,8 @@ class FileConcatenator:
             data=[n.encode("ascii", "ignore") for n in self.input_files]
         )
         f_out.close()
-        print(f"\nConcatenation complete!\nElapsed time: {elapsed_time/60:.2f} min "
+        print(f"\nConcatenation complete!"
+              f"\nElapsed time: {elapsed_time/60:.2f} min "
               f"({elapsed_time/len(self.input_files):.2f} s per file)")
 
     def _modify_event_info(self, input_file, folder_data):
@@ -129,7 +131,7 @@ class FileConcatenator:
         first one.
 
         """
-        # names of datasets that will be in the output file; read from first file
+        # names of datasets that will be in the output; read from first file
         with h5py.File(self.input_files[0], 'r') as f:
             keys_stripped = strip_keys(list(f.keys()))
 
@@ -138,7 +140,8 @@ class FileConcatenator:
             with h5py.File(file_name, 'r') as f:
                 if not all(k in f.keys() for k in keys_stripped):
                     raise KeyError(
-                        f"File {file_name} does not have the keys of the first file! "
+                        f"File {file_name} does not have the "
+                        f"keys of the first file! "
                         f"It has {f.keys()} First file: {keys_stripped}")
                 # length of each dataset
                 rows = [f[k].shape[0] for k in keys_stripped]
@@ -149,9 +152,10 @@ class FileConcatenator:
                     )
                 if not all(k in keys_stripped for k in strip_keys(list(f.keys()))):
                     warnings.warn(
-                        f"Additional datasets found in file {file_name} compared to "
-                        f"the first file, they wont be in the output! "
-                        f"This file: {strip_keys(list(f.keys()))} First file {keys_stripped}"
+                        f"Additional datasets found in file {file_name} compared "
+                        f"to the first file, they wont be in the output! "
+                        f"This file: {strip_keys(list(f.keys()))} "
+                        f"First file {keys_stripped}"
                     )
                 rows_per_file[i] = rows[0]
         return np.cumsum(rows_per_file)

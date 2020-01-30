@@ -32,6 +32,13 @@ class TestFileConcatenator(TestCase):
             'complib': 'gzip', 'complevel': 1, 'chunksize': 5
         }
 
+    def test_from_list(self):
+        with tempfile.NamedTemporaryFile("w+") as tf:
+            tf.writelines([f + "\n" for f in self.dummy_files])
+            tf.seek(0)
+            fc = conc.FileConcatenator.from_list(tf.name)
+            self.assertSequenceEqual(self.dummy_files, fc.input_files)
+
     def test_get_compopts(self):
         comptopts = conc.get_compopts(self.dummy_files[0])
         self.assertDictEqual(comptopts, self.compt_opts)
