@@ -10,7 +10,7 @@ __author__ = 'Stefan Reck, Michael Moser'
 
 class FileConcatenator:
     """
-    Class for concatenating many small h5 files to a single large one.
+    For concatenating many small h5 files to a single large one.
 
     Attributes
     ----------
