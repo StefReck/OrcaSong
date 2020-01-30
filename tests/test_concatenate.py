@@ -12,6 +12,13 @@ class TestFileConcatenator(TestCase):
     """
     Test concatenation on pre-generated h5 files. They are in test/data.
 
+    create_dummy_file(
+        "dummy_file_1.h5", columns=10, val_array=1, val_recarray=(1, 3)
+    )
+    create_dummy_file(
+        "dummy_file_2.h5", columns=15, val_array=2, val_recarray=(4, 5)
+    )
+
     """
     def setUp(self):
         # the files to test on
