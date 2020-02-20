@@ -109,16 +109,16 @@ class FileConcatenator:
                     # we need to add the current number of the
                     # group_id / index in the file_output to the
                     # group_ids / indices of the file that is to be appended
-                    if folder_name.endswith("_indices"):
-                        column_name = "index"
-                    else:
-                        try:
-                            if "group_id" in folder_data.dtype.names:
-                                column_name = "group_id"
-                            else:
-                                column_name = None
-                        except TypeError:
+                    try:
+                        if folder_name.endswith("_indices") and \
+                                "index" in folder_data.dtype.names:
+                            column_name = "index"
+                        elif "group_id" in folder_data.dtype.names:
+                            column_name = "group_id"
+                        else:
                             column_name = None
+                    except TypeError:
+                        column_name = None
                     if column_name is not None:
                         # add 1 because the group_ids / indices start with 0
                         folder_data[column_name] += \
