@@ -81,85 +81,90 @@ class FileConcatenator:
         Parameters
         ----------
         output_filepath : str
-            Name of the concatenated file.
+            Path of the concatenated output file.
         append_used_files : bool
             If True (default), add a dataset called 'used_files' to the
             output that contains the paths of the input_files.
 
         """
         print(f"Creating file {output_filepath}")
-        f_out = h5py.File(output_filepath, 'x')
-        start_time = time.time()
-        for n, input_file in enumerate(self.input_files):
-            print(f'Processing file {n+1}/{len(self.input_files)}: {input_file}')
-            f_in = h5py.File(input_file, 'r')
+        with h5py.File(output_filepath, 'x') as f_out:
+            start_time = time.time()
+            for input_file_nmbr, input_file in enumerate(self.input_files):
+                print(f'Processing file {input_file_nmbr+1}/'
+                      f'{len(self.input_files)}: {input_file}')
+                with h5py.File(input_file, 'r') as f_in:
+                    self._conc_file(f_in, f_out, input_file, input_file_nmbr)
+                f_out.flush()
+            elapsed_time = time.time() - start_time
 
-            # create metadata
-            if n == 0 and 'format_version' in list(f_in.attrs.keys()):
-                f_out.attrs['format_version'] = f_in.attrs['format_version']
+            if append_used_files:
+                # include the used filepaths in the file
+                print("Adding used files to output")
+                f_out.create_dataset(
+                    "used_files",
+                    data=[n.encode("ascii", "ignore") for n in self.input_files]
+                )
 
-            for folder_name in f_in:
-                if is_folder_ignored(folder_name):
-                    # we dont need datasets created by pytables anymore
-                    continue
-
-                folder_data = f_in[folder_name][()]
-
-                if n > 0:
-                    # we need to add the current number of the
-                    # group_id / index in the file_output to the
-                    # group_ids / indices of the file that is to be appended
-                    try:
-                        if folder_name.endswith("_indices") and \
-                                "index" in folder_data.dtype.names:
-                            column_name = "index"
-                        elif "group_id" in folder_data.dtype.names:
-                            column_name = "group_id"
-                        else:
-                            column_name = None
-                    except TypeError:
-                        column_name = None
-                    if column_name is not None:
-                        # add 1 because the group_ids / indices start with 0
-                        folder_data[column_name] += \
-                            np.amax(f_out[folder_name][column_name]) + 1
-
-                if self._append_mc_index and folder_name == "event_info":
-                    folder_data = self._modify_event_info(input_file, folder_data)
-
-                if n == 0:
-                    # first file; create the dataset
-                    dset_shape = (self.cumu_rows[-1],) + folder_data.shape[1:]
-                    print(f"\tCreating dataset '{folder_name}' with shape "
-                          f"{dset_shape}")
-                    output_dataset = f_out.create_dataset(
-                        folder_name,
-                        data=folder_data,
-                        maxshape=dset_shape,
-                        chunks=(self.comptopts["chunksize"],) + folder_data.shape[1:],
-                        compression=self.comptopts["complib"],
-                        compression_opts=self.comptopts["complevel"],
-                        shuffle=self.comptopts["shuffle"],
-                    )
-                    output_dataset.resize(self.cumu_rows[-1], axis=0)
-
-                else:
-                    f_out[folder_name][self.cumu_rows[n]:self.cumu_rows[n + 1]] = folder_data
-            f_in.close()
-            f_out.flush()
-
-        elapsed_time = time.time() - start_time
-        if append_used_files:
-            # include the used filepaths in the file
-            print("Adding used files to output")
-            f_out.create_dataset(
-                "used_files",
-                data=[n.encode("ascii", "ignore") for n in self.input_files]
-            )
-        f_out.close()
         print(f"\nConcatenation complete!"
               f"\nElapsed time: {elapsed_time/60:.2f} min "
               f"({elapsed_time/len(self.input_files):.2f} s per file)")
+
+    def _conc_file(self, f_in, f_out, input_file, input_file_nmbr):
+        """ Conc one file to the output. """
+        # create metadata
+        if input_file_nmbr == 0 and 'format_version' in list(f_in.attrs.keys()):
+            f_out.attrs['format_version'] = f_in.attrs['format_version']
+
+        for folder_name in f_in:
+            if is_folder_ignored(folder_name):
+                # we dont need datasets created by pytables anymore
+                continue
+
+            folder_data = f_in[folder_name][()]
+
+            if input_file_nmbr > 0:
+                # we need to add the current number of the
+                # group_id / index in the file_output to the
+                # group_ids / indices of the file that is to be appended
+                try:
+                    if folder_name.endswith("_indices") and \
+                            "index" in folder_data.dtype.names:
+                        column_name = "index"
+                    elif "group_id" in folder_data.dtype.names:
+                        column_name = "group_id"
+                    else:
+                        column_name = None
+                except TypeError:
+                    column_name = None
+                if column_name is not None:
+                    # add 1 because the group_ids / indices start with 0
+                    folder_data[column_name] += \
+                        np.amax(f_out[folder_name][column_name]) + 1
+
+            if self._append_mc_index and folder_name == "event_info":
+                folder_data = self._modify_event_info(input_file, folder_data)
+
+            if input_file_nmbr == 0:
+                # first file; create the dataset
+                dset_shape = (self.cumu_rows[-1],) + folder_data.shape[1:]
+                print(f"\tCreating dataset '{folder_name}' with shape "
+                      f"{dset_shape}")
+                output_dataset = f_out.create_dataset(
+                    folder_name,
+                    data=folder_data,
+                    maxshape=dset_shape,
+                    chunks=(self.comptopts["chunksize"],) + folder_data.shape[
+                                                            1:],
+                    compression=self.comptopts["complib"],
+                    compression_opts=self.comptopts["complevel"],
+                    shuffle=self.comptopts["shuffle"],
+                )
+                output_dataset.resize(self.cumu_rows[-1], axis=0)
+
+            else:
+                f_out[folder_name][
+                    self.cumu_rows[input_file_nmbr]:self.cumu_rows[input_file_nmbr + 1]] = folder_data
 
     def _modify_event_info(self, input_file, folder_data):
         raise NotImplementedError
@@ -225,19 +230,20 @@ def _get_rows(file_name, target_datasets):
 
 
 def strip_keys(f_keys):
-    """
-    Remove pytables folders starting with '_i_', because the shape
-    of its first axis does not correspond to the number of events
-    in the file. All other folders normally have an axis_0 shape
-    that is equal to the number of events in the file.
-    Also remove bin_stats.
-    """
+    """ Remove unwanted keys from list. """
     return [x for x in f_keys if not is_folder_ignored(x)]
 
 
 def is_folder_ignored(folder_name):
     """
-    Defines pytable folders which should be ignored during concat.
+    Defines datasets which should be ignored during concat.
+
+    Remove pytables folders starting with '_i_', because the shape
+    of its first axis does not correspond to the number of events
+    in the file. All other folders normally have an axis_0 shape
+    that is equal to the number of events in the file.
+    Also remove bin_stats.
+
     """
     return '_i_' in folder_name or "bin_stats" in folder_name
 
