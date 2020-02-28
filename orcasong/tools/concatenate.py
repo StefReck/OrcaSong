@@ -49,7 +49,7 @@ class FileConcatenator:
             self.comptopts.update(comptopts_update)
         print("\n".join([f"  {k}:\t{v}" for k, v in self.comptopts.items()]))
 
-        self._append_mc_index = False
+        self._modify_folder = False
 
     @classmethod
     def from_list(cls, list_file, n_files=None, **kwargs):
@@ -142,8 +142,11 @@ class FileConcatenator:
                     folder_data[column_name] += \
                         np.amax(f_out[folder_name][column_name]) + 1
 
-            if self._append_mc_index and folder_name == "event_info":
-                folder_data = self._modify_event_info(input_file, folder_data)
+            if self._modify_folder:
+                data_mody = self._modify(
+                    input_file, folder_data, folder_name)
+                if data_mody is not None:
+                    folder_data = data_mody
 
             if input_file_nmbr == 0:
                 # first file; create the dataset
@@ -166,7 +169,7 @@ class FileConcatenator:
                 f_out[folder_name][
                     self.cumu_rows[input_file_nmbr]:self.cumu_rows[input_file_nmbr + 1]] = folder_data
 
-    def _modify_event_info(self, input_file, folder_data):
+    def _modify(self, input_file, folder_data, folder_name):
         raise NotImplementedError
 
     def _get_cumu_rows(self):
@@ -278,7 +281,7 @@ def get_compopts(file):
     return comptopts
 
 
-def main():
+def get_parser():
     parser = argparse.ArgumentParser(
         description='Concatenate many small h5 files to a single large one '
                     'in a km3pipe compatible format. This is intended for '
@@ -291,7 +294,7 @@ def main():
         'file', type=str, nargs="*",
         help="Define the files to concatenate. If it's one argument: A txt list "
              "with pathes of h5 files to concatenate (one path per line). "
-             "If it's multiple arguments:"
+             "If it's multiple arguments: "
              "The pathes of h5 files to concatenate.")
     parser.add_argument(
         '--outfile', type=str, default="concatenated.h5",
@@ -301,6 +304,11 @@ def main():
         help="Per default, the paths of the input files are added "
              "as their own datagroup in the output file. Use this flag to "
              "disable. ")
+    return parser
+
+
+def main():
+    parser = get_parser()
     parsed_args = parser.parse_args()
 
     if len(parsed_args.file) == 1:
