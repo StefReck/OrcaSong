@@ -220,7 +220,6 @@ def shuffle_h5(filepath_input, tool=False, seed=42, delete=False, chunksize=None
         pipe.attach(km.common.StatusBar, every=200)
         pipe.attach(km.common.MemoryObserver, every=200)
         pipe.attach(kp.io.hdf5.HDF5Pump, filename=filepath_input, shuffle=shuffle, reset_index=True)
-        pipe.attach(os_modules.BlobChecker)
         if event_skipper is not None:
             pipe.attach(os_modules.EventSkipper, event_skipper=event_skipper)
 
