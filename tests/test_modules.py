@@ -146,6 +146,77 @@ class TestTimePreproc(TestCase):
             np.array(target["McHits"].view("<f8")))
 
 
+class TestPointMaker(TestCase):
+    def setUp(self):
+        self.input_blob_1 = {
+            "Hits": Table({
+                "x": [4, 5, 6],
+                'time': [1., 2., 3.],
+                "t0": [0.1, 0.2, 0.3],}),
+            "EventInfo": Table({
+                "pad": 1.
+            })
+        }
+
+    def test_input_blob_1(self):
+        result = modules.PointMaker(
+            max_n_hits=4,
+            extract_keys=("x", "time"),
+            store_as="points",
+            time_window=None,
+            dset_n_hits=None,
+        ).process(self.input_blob_1)["points"]
+        target = np.array(
+            [[[4, 1, 1],
+              [5, 2, 1],
+              [6, 3, 1],
+              [0, 0, 0]]], dtype="float32")
+        np.testing.assert_array_equal(result, target)
+
+    def test_input_blob_1_max_n_hits(self):
+        input_blob_long = {
+            "Hits": Table({
+                "x": np.random.rand(1000).astype("float32"),
+        })}
+        result = modules.PointMaker(
+            max_n_hits=10,
+            extract_keys=("x",),
+            store_as="points",
+            time_window=None,
+            dset_n_hits=None,
+        ).process(input_blob_long)["points"]
+
+        self.assertSequenceEqual(result.shape, (1, 10, 2))
+        self.assertTrue(all(
+            np.isin(result[0, :, 0], input_blob_long["Hits"]["x"])))
+
+    def test_input_blob_time_window(self):
+        result = modules.PointMaker(
+            max_n_hits=4,
+            extract_keys=("x", "time"),
+            store_as="points",
+            time_window=[1, 2],
+            dset_n_hits=None,
+        ).process(self.input_blob_1)["points"]
+        target = np.array(
+            [[[4, 1, 1],
+              [5, 2, 1],
+              [0, 0, 0],
+              [0, 0, 0]]], dtype="float32")
+        np.testing.assert_array_equal(result, target)
+
+    def test_input_blob_time_window_nhits(self):
+        result = modules.PointMaker(
+            max_n_hits=4,
+            extract_keys=("x", "time"),
+            store_as="points",
+            time_window=[1, 2],
+            dset_n_hits="EventInfo",
+        ).process(self.input_blob_1)["EventInfo"]
+        print(result)
+        self.assertEqual(result["n_hits_intime"], 2)
+
+
 class TestImageMaker(TestCase):
     def test_2d_xt_binning(self):
         # (3 x 2) x-t binning

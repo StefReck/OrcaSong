@@ -278,6 +278,89 @@ class BinningStatsMaker(kp.Module):
         return inside
 
 
+class PointMaker(kp.Module):
+    """
+    Store individual hit info from "Hits" in the blob.
+
+    Used for graph networks.
+
+    Attributes
+    ----------
+    max_n_hits : int
+        Maximum number of hits that gets saved per event. If an event has
+        more, some will get cut!
+    extract_keys : tuple
+        Which entries in the '/Hits' Table will be kept. E.g. pos_x, time, ...
+    time_window : tuple, optional
+        Two ints (start, end). Hits outside of this time window will be cut
+        away (base on 'Hits/time').
+    store_as : str
+        Store the points infos with this name in the blob.
+    dset_n_hits : str, optional
+        If given, store the number of hits that are in the time window
+        as a new column called 'n_hits_intime' in the dataset with
+        this name (usually this is EventInfo).
+
+    """
+    def configure(self):
+        self.max_n_hits = self.require("max_n_hits")
+        self.extract_keys = self.require("extract_keys")
+        self.store_as = self.require('store_as')
+        self.time_window = self.get("time_window", default=None)
+        self.dset_n_hits = self.get("dset_n_hits", default=None)
+
+    def process(self, blob):
+        points, n_hits = self.get_points(blob)
+        blob[self.store_as] = kp.NDArray(
+            np.expand_dims(points, 0), h5loc="x", name="event_info")
+        if self.dset_n_hits:
+            blob[self.dset_n_hits] = blob[self.dset_n_hits].append_columns(
+                "n_hits_intime", n_hits)
+        return blob
+
+    def get_points(self, blob):
+        """
+        Get the desired hit infos from the blob.
+
+        Returns
+        -------
+        points : np.array
+            The hit infos of this event as a 2d matrix. No of rows are
+            fixed to the given max_n_hits. Each of the self.extract_keys,
+            is in one column + an additional column which is 1 for
+            actual hits, and 0 for if its a padded row.
+        n_hits : int
+            Number of hits in the given time window.
+
+        """
+        points = np.zeros(
+            (self.max_n_hits, len(self.extract_keys) + 1), dtype="float32")
+
+        hits = blob["Hits"]
+        if self.time_window is not None:
+            # remove hits outside of time window
+            hits = hits[np.logical_and(
+                hits["time"] >= self.time_window[0],
+                hits["time"] <= self.time_window[1],
+            )]
+
+        n_hits = len(hits)
+        if n_hits > self.max_n_hits:
+            # if there are too many hits, take random ones, but keep order
+            indices = np.arange(n_hits)
+            np.random.shuffle(indices)
+            which = indices[:self.max_n_hits]
+            which.sort()
+            hits = hits[which]
+
+        for i, which in enumerate(self.extract_keys):
+            data = hits[which]
+            points[:n_hits, i] = data
+        # last column is whether there was a hit or no
+        points[:n_hits, -1] = 1.
+        return points, n_hits
+
+
 class EventSkipper(kp.Module):
     """
     Skip events based on blob content.
