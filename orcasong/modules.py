@@ -4,6 +4,8 @@ Custom km3pipe modules for making nn input files.
 
 import numpy as np
 import km3pipe as kp
+import km3modules as km
+import orcasong.plotting.plot_binstats as plot_binstats
 
 __author__ = 'Stefan Reck'
 
@@ -48,6 +50,9 @@ class TimePreproc(kp.Module):
     ----------
     add_t0 : bool
         If true, t0 will be added to times of hits and mchits.
+    correct_timeslew : bool
+        If true, the time slewing of hits depending on their tot
+        will be corrected.
     center_time : bool
         If true, center hit and mchit times with the time of the first
         triggered hit.
@@ -57,29 +62,37 @@ class TimePreproc(kp.Module):
     """
 
     def configure(self):
-        self.add_t0 = self.require('add_t0')
+        self.add_t0 = self.get('add_t0', default=False)
+        self.correct_timeslew = self.get("correct_timeslew", default=True)
         self.center_time = self.get('center_time', default=True)
         self.subtract_t0_mchits = self.get('subtract_t0_mchits', default=False)
 
-        self.has_mchits = None
+        self._has_mchits = None
         self._print_flags = set()
 
     def process(self, blob):
-        if self.has_mchits is None:
-            self.has_mchits = "McHits" in blob
+        if self._has_mchits is None:
+            self._has_mchits = "McHits" in blob
 
         if self.add_t0:
             blob = self.add_t0_time(blob)
-        if self.subtract_t0_mchits and self.has_mchits:
+        if self.correct_timeslew:
+            blob = self.timeslew(blob)
+        if self.subtract_t0_mchits and self._has_mchits:
             blob = self.subtract_t0_mctime(blob)
         blob = self.center_hittime(blob)
 
         return blob
 
+    def timeslew(self, blob):
+        self._print_once("Subtracting time slew of hit times")
+        blob["Hits"]["time"] -= km.mc.slew(blob["Hits"]["tot"])
+        return blob
+
     def add_t0_time(self, blob):
         self._print_once("Adding t0 to hit times")
         blob["Hits"].time = np.add(blob["Hits"].time, blob["Hits"].t0)
-        if self.has_mchits:
+        if self._has_mchits:
             self._print_once("Adding t0 to mchit times")
             blob["McHits"].time = np.add(
                 blob["McHits"].time, blob["McHits"].t0)
@@ -101,7 +114,7 @@ class TimePreproc(kp.Module):
             self._print_once("Centering time of Hits with first triggered hit")
             blob["Hits"].time = np.subtract(hits_time, t_first_trigger)
 
-        if self.has_mchits:
+        if self._has_mchits:
             self._print_once("Centering time of McHits with first triggered hit")
             mchits_time = blob["McHits"].time
             blob["McHits"].time = np.subtract(mchits_time, t_first_trigger)
@@ -116,15 +129,13 @@ class TimePreproc(kp.Module):
 
 class ImageMaker(kp.Module):
     """
-    Make a n-d histogram from "Hits" in blob, and store it.
+    Make a n-d histogram from "Hits", and store it in the blob as 'samples'.
 
     Attributes
     ----------
     bin_edges_list : List
         List with the names of the fields to bin, and the respective bin edges,
         including the left- and right-most bin edge.
-    store_as : str
-        Store the images with this name in the blob.
     hit_weights : str, optional
         Use blob["Hits"][hit_weights] as weights for samples in histogram.
 
@@ -132,8 +143,8 @@ class ImageMaker(kp.Module):
 
     def configure(self):
         self.bin_edges_list = self.require('bin_edges_list')
-        self.store_as = self.require('store_as')
         self.hit_weights = self.get('hit_weights')
+        self.store_as = "samples"
 
     def process(self, blob):
         data, bins, name = [], [], ""
@@ -149,11 +160,10 @@ class ImageMaker(kp.Module):
             weights = None
 
         histogram = np.histogramdd(data, bins=bins, weights=weights)[0]
-        title = name + "event_images"
 
         hist_one_event = histogram[np.newaxis, ...].astype(np.uint8)
         kp_hist = kp.dataclasses.NDArray(
-            hist_one_event, h5loc='x', title=title)
+            hist_one_event, h5loc='x', title=name + "event_images")
 
         blob[self.store_as] = kp_hist
         return blob
@@ -177,20 +187,23 @@ class BinningStatsMaker(kp.Module):
     bin_edges_list : List
         List with the names of the fields to bin, and the respective bin edges,
         including the left- and right-most bin edge.
-    bin_plot_freq : int
-        Extract data for the histograms only every given number of blobs
-        (reduces time the pipeline takes to complete).
+    outfile : str
+        The binning stats will get stored in this file afer completion.
     res_increase : int
         Increase the number of bins by this much in the hists (so that one
         can see if the edges have been placed correctly). Is never used
         for the time binning (field name "time").
+    bin_plot_freq : int
+        Extract data for the histograms only every given number of blobs
+        (reduces time the pipeline takes to complete).
 
     """
 
     def configure(self):
         self.bin_edges_list = self.require('bin_edges_list')
-        self.bin_plot_freq = self.get("bin_plot_freq", default=1)
-        self.res_increase = self.get('res_increase', default=5)
+        self.outfile = self.require("outfile")
+        self.res_increase = 5
+        self.bin_plot_freq = 1
 
         self.hists = {}
         for bin_name, org_bin_edges in self.bin_edges_list:
@@ -247,7 +260,7 @@ class BinningStatsMaker(kp.Module):
 
     def finish(self):
         """
-        Get the hists, which are the stats of the binning.
+        Append the hists, which are the stats of the binning.
 
         Its a dict with each binning field name containing the following
         ndarrays:
@@ -260,7 +273,7 @@ class BinningStatsMaker(kp.Module):
         hist : The number of hist in each bin of the hist_bin_edges.
 
         """
-        return self.hists
+        plot_binstats.add_hists_to_h5file(self.hists, self.outfile)
 
     def _is_in_limits(self, hits, excluded=None):
         """ Get which hits are in the limits defined by ALL bin edges
@@ -280,7 +293,7 @@ class BinningStatsMaker(kp.Module):
 
 class PointMaker(kp.Module):
     """
-    Store individual hit info from "Hits" in the blob.
+    Store individual hit info from "Hits" in the blob as 'samples'.
 
     Used for graph networks.
 
@@ -289,13 +302,13 @@ class PointMaker(kp.Module):
     max_n_hits : int
         Maximum number of hits that gets saved per event. If an event has
         more, some will get cut!
-    extract_keys : tuple
-        Which entries in the '/Hits' Table will be kept. E.g. pos_x, time, ...
     time_window : tuple, optional
         Two ints (start, end). Hits outside of this time window will be cut
         away (base on 'Hits/time').
-    store_as : str
-        Store the points infos with this name in the blob.
+        Default: Keep all hits.
+    hit_infos : tuple, optional
+        Which entries in the '/Hits' Table will be kept. E.g. pos_x, time, ...
+        Default: Keep all entries.
     dset_n_hits : str, optional
         If given, store the number of hits that are in the time window
         as a new column called 'n_hits_intime' in the dataset with
@@ -304,10 +317,10 @@ class PointMaker(kp.Module):
     """
     def configure(self):
         self.max_n_hits = self.require("max_n_hits")
-        self.extract_keys = self.require("extract_keys")
-        self.store_as = self.require('store_as')
+        self.hit_infos = self.get("hit_infos", default=None)
         self.time_window = self.get("time_window", default=None)
         self.dset_n_hits = self.get("dset_n_hits", default=None)
+        self.store_as = "samples"
 
     def process(self, blob):
         points, n_hits = self.get_points(blob)
@@ -333,8 +346,11 @@ class PointMaker(kp.Module):
             Number of hits in the given time window.
 
         """
+        if self.hit_infos is None:
+            self.hit_infos = blob["Hits"].dtype.names
+
         points = np.zeros(
-            (self.max_n_hits, len(self.extract_keys) + 1), dtype="float32")
+            (self.max_n_hits, len(self.hit_infos) + 1), dtype="float32")
 
         hits = blob["Hits"]
         if self.time_window is not None:
@@ -353,7 +369,7 @@ class PointMaker(kp.Module):
             which.sort()
             hits = hits[which]
 
-        for i, which in enumerate(self.extract_keys):
+        for i, which in enumerate(self.hit_infos):
             data = hits[which]
             points[:n_hits, i] = data
         # last column is whether there was a hit or no
@@ -379,6 +395,7 @@ class EventSkipper(kp.Module):
         self._skipped = 0
 
     def process(self, blob):
+        blob = self._remove_groupid(blob)
         if self.event_skipper(blob):
             self._skipped += 1
             return
@@ -386,12 +403,35 @@ class EventSkipper(kp.Module):
             self._not_skipped += 1
             return blob
 
+    def _remove_groupid(self, blob):
+        """ Workaround until bug in km3pipe is fixed: Drop all group_ids """
+        if "GroupInfo" in blob:
+            del blob["GroupInfo"]
+        for key in blob.keys():
+            try:
+                blob[key] = blob[key].drop_columns("group_id")
+            except AttributeError:
+                continue
+        return blob
+
     def finish(self):
         tot_events = self._skipped + self._not_skipped
         self.cprint(
             f"Skipped {self._skipped}/{tot_events} events "
             f"({self._skipped/tot_events:.4%})."
         )
+
+
+def _remove_groupid(blob):
+    """ Workaround until bug in km3pipe is fixed: Drop all group_ids """
+    if "GroupInfo" in blob:
+        del blob["GroupInfo"]
+    for key in blob.keys():
+        try:
+            blob[key] = blob[key].drop_columns("group_id")
+        except AttributeError:
+            continue
+    return blob
 
 
 class DetApplier(kp.Module):
@@ -407,7 +447,7 @@ class DetApplier(kp.Module):
 
     def configure(self):
         self.det_file = self.require("det_file")
-
+        self.cprint(f"Calibrating with {self.det_file}")
         self.calib = kp.calib.Calibration(filename=self.det_file)
         self._calib_checked = False
 
@@ -420,7 +460,7 @@ class DetApplier(kp.Module):
                     "errors with t0."
                 )
             self._calib_checked = True
-
+        # TODO use built-in time slewing of km3pipe 9 once released
         blob = self.calib.process(blob, key="Hits", outkey="Hits")
         if "McHits" in blob:
             blob = self.calib.process(blob, key="McHits", outkey="McHits")

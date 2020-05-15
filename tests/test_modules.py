@@ -158,14 +158,23 @@ class TestPointMaker(TestCase):
             })
         }
 
+    def test_default_settings(self):
+        result = modules.PointMaker(
+            max_n_hits=4).process(self.input_blob_1)["samples"]
+        target = np.array(
+            [[[4, 1, 0.1, 1],
+              [5, 2, 0.2, 1],
+              [6, 3, 0.3, 1],
+              [0, 0, 0,   0]]], dtype="float32")
+        np.testing.assert_array_equal(result, target)
+
     def test_input_blob_1(self):
         result = modules.PointMaker(
             max_n_hits=4,
-            extract_keys=("x", "time"),
-            store_as="points",
+            hit_infos=("x", "time"),
             time_window=None,
             dset_n_hits=None,
-        ).process(self.input_blob_1)["points"]
+        ).process(self.input_blob_1)["samples"]
         target = np.array(
             [[[4, 1, 1],
               [5, 2, 1],
@@ -180,11 +189,10 @@ class TestPointMaker(TestCase):
         })}
         result = modules.PointMaker(
             max_n_hits=10,
-            extract_keys=("x",),
-            store_as="points",
+            hit_infos=("x",),
             time_window=None,
             dset_n_hits=None,
-        ).process(input_blob_long)["points"]
+        ).process(input_blob_long)["samples"]
 
         self.assertSequenceEqual(result.shape, (1, 10, 2))
         self.assertTrue(all(
@@ -193,11 +201,10 @@ class TestPointMaker(TestCase):
     def test_input_blob_time_window(self):
         result = modules.PointMaker(
             max_n_hits=4,
-            extract_keys=("x", "time"),
-            store_as="points",
+            hit_infos=("x", "time"),
             time_window=[1, 2],
             dset_n_hits=None,
-        ).process(self.input_blob_1)["points"]
+        ).process(self.input_blob_1)["samples"]
         target = np.array(
             [[[4, 1, 1],
               [5, 2, 1],
@@ -208,8 +215,7 @@ class TestPointMaker(TestCase):
     def test_input_blob_time_window_nhits(self):
         result = modules.PointMaker(
             max_n_hits=4,
-            extract_keys=("x", "time"),
-            store_as="points",
+            hit_infos=("x", "time"),
             time_window=[1, 2],
             dset_n_hits="EventInfo",
         ).process(self.input_blob_1)["EventInfo"]
