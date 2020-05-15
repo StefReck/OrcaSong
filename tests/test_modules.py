@@ -36,12 +36,13 @@ class TestModules(TestCase):
 
     def test_event_skipper(self):
         def event_skipper(blob):
-            return blob == 42
+            # skip if true
+            return blob["a"] == 42
 
         module = modules.EventSkipper(event_skipper=event_skipper)
 
-        self.assertEqual(module.process(42), None)
-        self.assertEqual(module.process(25), 25)
+        self.assertEqual(module.process({"a": 42}), None)
+        self.assertEqual(module.process({"a": 25}), {"a": 25})
 
 
 class TestTimePreproc(TestCase):
@@ -161,11 +162,12 @@ class TestPointMaker(TestCase):
     def test_default_settings(self):
         result = modules.PointMaker(
             max_n_hits=4).process(self.input_blob_1)["samples"]
+        # no order given, hopefully this is always (t0, time, x) ...
         target = np.array(
-            [[[4, 1, 0.1, 1],
-              [5, 2, 0.2, 1],
-              [6, 3, 0.3, 1],
-              [0, 0, 0,   0]]], dtype="float32")
+            [[[0.1, 1, 4, 1],
+              [0.2, 2, 5, 1],
+              [0.3, 3, 6, 1],
+              [0,   0, 0, 0]]], dtype="float32")
         np.testing.assert_array_equal(result, target)
 
     def test_input_blob_1(self):
@@ -231,8 +233,7 @@ class TestImageMaker(TestCase):
             ["time", [0.5, 2, 3.5]]
         ]
 
-        module = modules.ImageMaker(
-            bin_edges_list=bin_edges_list, store_as="histogram")
+        module = modules.ImageMaker(bin_edges_list=bin_edges_list)
         in_blob = {
             "Hits": Table({
                 "x": [4, 5, 6],
@@ -249,7 +250,7 @@ class TestImageMaker(TestCase):
                 "t0": [0.1, 0.2, 0.3],
                 "triggered": [0, 1, 1],
             }),
-            "histogram": np.array([[
+            "samples": np.array([[
                 [1, 0],
                 [0, 1],
                 [0, 1],
@@ -262,8 +263,8 @@ class TestImageMaker(TestCase):
             np.array(out_blob["Hits"].view("<f8")),
             np.array(target["Hits"].view("<f8")))
         np.testing.assert_array_almost_equal(
-            np.array(out_blob["histogram"]),
-            np.array(target["histogram"]))
+            np.array(out_blob["samples"]),
+            np.array(target["samples"]))
 
     def test_unknown_field(self):
         # (3 x 2) x-t binning
@@ -273,7 +274,7 @@ class TestImageMaker(TestCase):
         ]
 
         module = modules.ImageMaker(
-            bin_edges_list=bin_edges_list, store_as="histogram")
+            bin_edges_list=bin_edges_list)
         in_blob = {
             "Hits": Table({
                 "x": [4, 5, 6],
@@ -292,8 +293,7 @@ class TestImageMaker(TestCase):
             ["time", [2.5, 3.5]]
         ]
 
-        module = modules.ImageMaker(
-            bin_edges_list=bin_edges_list, store_as="histogram")
+        module = modules.ImageMaker(bin_edges_list=bin_edges_list)
         in_blob = {
             "Hits": Table({
                 'time': [1., 2., 3.],
@@ -308,7 +308,7 @@ class TestImageMaker(TestCase):
                 "t0": [0.1, 0.2, 0.3],
                 "triggered": [0, 1, 1],
             }),
-            "histogram": np.array([
+            "samples": np.array([
                 [1, ],
             ])
         }
@@ -319,8 +319,8 @@ class TestImageMaker(TestCase):
             np.array(out_blob["Hits"].view("<f8")),
             np.array(target["Hits"].view("<f8")))
         np.testing.assert_array_almost_equal(
-            np.array(out_blob["histogram"]),
-            np.array(target["histogram"]))
+            np.array(out_blob["samples"]),
+            np.array(target["samples"]))
 
     def test_1d_binning_no_hits(self):
         # (1, ) t binning
@@ -328,8 +328,7 @@ class TestImageMaker(TestCase):
             ["time", [3.5, 4.5]]
         ]
 
-        module = modules.ImageMaker(
-            bin_edges_list=bin_edges_list, store_as="histogram")
+        module = modules.ImageMaker(bin_edges_list=bin_edges_list)
         in_blob = {
             "Hits": Table({
                 'time': [1., 2., 3.],
@@ -344,7 +343,7 @@ class TestImageMaker(TestCase):
                 "t0": [0.1, 0.2, 0.3],
                 "triggered": [0, 1, 1],
             }),
-            "histogram": np.array([
+            "samples": np.array([
                 [0, ],
             ])
         }
@@ -355,8 +354,8 @@ class TestImageMaker(TestCase):
             np.array(out_blob["Hits"].view("<f8")),
             np.array(target["Hits"].view("<f8")))
         np.testing.assert_array_almost_equal(
-            np.array(out_blob["histogram"]),
-            np.array(target["histogram"]))
+            np.array(out_blob["samples"]),
+            np.array(target["samples"]))
 
 
 class TestBinningStatsMaker(TestCase):

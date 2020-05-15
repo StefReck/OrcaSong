@@ -63,7 +63,7 @@ class TimePreproc(kp.Module):
 
     def configure(self):
         self.add_t0 = self.get('add_t0', default=False)
-        self.correct_timeslew = self.get("correct_timeslew", default=True)
+        self.correct_timeslew = self.get("correct_timeslew", default=False)
         self.center_time = self.get('center_time', default=True)
         self.subtract_t0_mchits = self.get('subtract_t0_mchits', default=False)
 
@@ -187,8 +187,9 @@ class BinningStatsMaker(kp.Module):
     bin_edges_list : List
         List with the names of the fields to bin, and the respective bin edges,
         including the left- and right-most bin edge.
-    outfile : str
+    outfile : str, optional
         The binning stats will get stored in this file afer completion.
+        If None, they don't get stored.
     res_increase : int
         Increase the number of bins by this much in the hists (so that one
         can see if the edges have been placed correctly). Is never used
@@ -201,8 +202,8 @@ class BinningStatsMaker(kp.Module):
 
     def configure(self):
         self.bin_edges_list = self.require('bin_edges_list')
-        self.outfile = self.require("outfile")
-        self.res_increase = 5
+        self.outfile = self.get("outfile", default=None)
+        self.res_increase = self.get("res_increase", default=5)
         self.bin_plot_freq = 1
 
         self.hists = {}
@@ -273,7 +274,9 @@ class BinningStatsMaker(kp.Module):
         hist : The number of hist in each bin of the hist_bin_edges.
 
         """
-        plot_binstats.add_hists_to_h5file(self.hists, self.outfile)
+        if self.outfile is not None:
+            plot_binstats.add_hists_to_h5file(self.hists, self.outfile)
+        return self.hists
 
     def _is_in_limits(self, hits, excluded=None):
         """ Get which hits are in the limits defined by ALL bin edges

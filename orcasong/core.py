@@ -35,7 +35,7 @@ class BaseProcessor:
         also be done for McHits if they are in the blob [default: True].
     correct_timeslew : bool
         If true, the time slewing of hits depending on their tot
-        will be corrected [default: True].
+        will be corrected [default: False].
     add_t0 : bool
         If true, add t0 to the time of hits and mchits. If using a
         det_file, this will already have been done automatically.
@@ -78,7 +78,7 @@ class BaseProcessor:
                  det_file=None,
                  center_time=True,
                  add_t0=False,
-                 correct_timeslew=True,
+                 correct_timeslew=False,
                  event_skipper=None,
                  chunksize=32,
                  keep_event_info=True,
