@@ -324,11 +324,16 @@ class PointMaker(kp.Module):
         self.time_window = self.get("time_window", default=None)
         self.dset_n_hits = self.get("dset_n_hits", default=None)
         self.store_as = "samples"
+        self._dset_name = None
 
     def process(self, blob):
+        if self.hit_infos is None:
+            self.hit_infos = blob["Hits"].dtype.names
+        if self._dset_name is None:
+            self._dset_name = ", ".join(self.hit_infos + ("is_valid", ))
         points, n_hits = self.get_points(blob)
         blob[self.store_as] = kp.NDArray(
-            np.expand_dims(points, 0), h5loc="x", name="event_info")
+            np.expand_dims(points, 0), h5loc="x", title=self._dset_name)
         if self.dset_n_hits:
             blob[self.dset_n_hits] = blob[self.dset_n_hits].append_columns(
                 "n_hits_intime", n_hits)
@@ -349,9 +354,6 @@ class PointMaker(kp.Module):
             Number of hits in the given time window.
 
         """
-        if self.hit_infos is None:
-            self.hit_infos = blob["Hits"].dtype.names
-
         points = np.zeros(
             (self.max_n_hits, len(self.hit_infos) + 1), dtype="float32")
 

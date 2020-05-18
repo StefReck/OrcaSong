@@ -162,7 +162,7 @@ class TestPointMaker(TestCase):
     def test_default_settings(self):
         result = modules.PointMaker(
             max_n_hits=4).process(self.input_blob_1)["samples"]
-        # no order given, hopefully this is always (t0, time, x) ...
+        self.assertEqual(result.title, 't0, time, x, is_valid')
         target = np.array(
             [[[0.1, 1, 4, 1],
               [0.2, 2, 5, 1],
@@ -177,6 +177,7 @@ class TestPointMaker(TestCase):
             time_window=None,
             dset_n_hits=None,
         ).process(self.input_blob_1)["samples"]
+        self.assertEqual(result.title, 'x, time, is_valid')
         target = np.array(
             [[[4, 1, 1],
               [5, 2, 1],

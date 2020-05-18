@@ -52,13 +52,13 @@ class BaseProcessor:
     keep_event_info : bool
         If True, will keep the "event_info" table [default: True].
     keep_mc_tracks : bool
-        If True, will keep the "McTracks" table [default: False].
+        If True, will keep the "McTracks" table. It's large! [default: False]
 
     Attributes
     ----------
-    n_statusbar : int, optional
+    n_statusbar : int or None
         Print a statusbar every n blobs.
-    n_memory_observer : int, optional
+    n_memory_observer : int or None
         Print memory usage every n blobs.
     complib : str
         Compression library used for saving the output to a .h5 file.
@@ -113,14 +113,13 @@ class BaseProcessor:
 
         """
         if outfile is None:
-            outfile_name = "{}_hist.h5".format(
-                os.path.splitext(os.path.basename(infile))[0]
-            )
-            outfile = os.path.join(os.getcwd(), outfile_name)
-
+            outfile = os.path.join(os.getcwd(), "{}_hist.h5".format(
+                os.path.splitext(os.path.basename(infile))[0]))
         pipe = self.build_pipe(infile, outfile)
         pipe.drain()
-        add_version_info(outfile)
+        # Add current orcasong version to h5 file
+        with h5py.File(outfile, "a") as f:
+            f.attrs.create("orcasong", orcasong.__version__, dtype="S6")
 
     def run_multi(self, infiles, outfolder):
         """
@@ -161,7 +160,7 @@ class BaseProcessor:
         return pipe
 
     def get_cmpts_pre(self, infile):
-        """ Modules that read and preproc the events. """
+        """ Modules that read and calibrate the events. """
         cmpts = []
         cmpts.append((kp.io.hdf5.HDF5Pump, {"filename": infile}))
         cmpts.append((km.common.Keep, {"keys": [
@@ -170,7 +169,7 @@ class BaseProcessor:
         if self.det_file:
             cmpts.append((modules.DetApplier, {"det_file": self.det_file}))
 
-        if self.center_time or self.add_t0:
+        if any((self.center_time, self.add_t0, self.correct_timeslew)):
             cmpts.append((modules.TimePreproc, {
                 "add_t0": self.add_t0,
                 "center_time": self.center_time,
@@ -234,6 +233,8 @@ class FileBinner(BaseProcessor):
         plotted with util/bin_stats_plot.py [default: True].
     hit_weights : str, optional
         Use blob["Hits"][hit_weights] as weights for samples in histogram.
+    kwargs
+        Options of the BaseProcessor.
 
     """
     def __init__(self, bin_edges_list,
@@ -284,6 +285,7 @@ class FileBinner(BaseProcessor):
         if save_plot:
             plot_binstats.plot_hist_of_files(
                 files=outfiles, save_as=outfolder+"binning_hist.pdf")
+        return outfiles
 
     def get_names_and_shape(self):
         """
@@ -304,18 +306,25 @@ class FileGraph(BaseProcessor):
     """
     Turn km3 events to graph data.
 
+    The resulting file will have a dataset "x" of shape
+    (?, max_n_hits, len(hit_infos) + 1), and its title (x.attrs["TITLE"])
+    is the column names of the last axis, seperated by ', ' (= hit_infos).
+    The last column will always be called 'is_valid', and its 0 if
+    the entry is padded, and 1 otherwise.
+
     Parameters
     ----------
     max_n_hits : int
         Maximum number of hits that gets saved per event. If an event has
-        more, some will get cut!
+        more, some will get cut randomly!
     time_window : tuple, optional
         Two ints (start, end). Hits outside of this time window will be cut
-        away (base on 'Hits/time').
-        Default: Keep all hits.
+        away (based on 'Hits/time'). Default: Keep all hits.
     hit_infos : tuple, optional
         Which entries in the '/Hits' Table will be kept. E.g. pos_x, time, ...
         Default: Keep all entries.
+    kwargs
+        Options of the BaseProcessor.
 
     """
     def __init__(self, max_n_hits,
@@ -333,9 +342,3 @@ class FileGraph(BaseProcessor):
             "time_window": self.time_window,
             "hit_infos": self.hit_infos,
             "dset_n_hits": "EventInfo"}))]
-
-
-def add_version_info(file):
-    """ Add current orcasong version to h5 file. """
-    with h5py.File(file, "a") as f:
-        f.attrs.create("orcasong", orcasong.__version__, dtype="S6")
