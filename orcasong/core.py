@@ -72,6 +72,9 @@ class BaseProcessor:
         the harddisk.
         A larger value leads to a faster orcasong execution,
         but it increases the RAM usage as well.
+    seed : int, optional
+        Makes all random (numpy) actions reproducable. Set at the start of
+        each pipeline.
 
     """
     def __init__(self, mc_info_extr=None,
@@ -98,6 +101,7 @@ class BaseProcessor:
         self.complib = 'zlib'
         self.complevel = 1
         self.flush_frequency = 1000
+        self.seed = 42
 
     def run(self, infile, outfile=None):
         """
@@ -115,11 +119,12 @@ class BaseProcessor:
         if outfile is None:
             outfile = os.path.join(os.getcwd(), "{}_hist.h5".format(
                 os.path.splitext(os.path.basename(infile))[0]))
+        if self.seed:
+            km.GlobalRandomState(seed=self.seed)
         pipe = self.build_pipe(infile, outfile)
-        pipe.drain()
-        # Add current orcasong version to h5 file
+        summary = pipe.drain()
         with h5py.File(outfile, "a") as f:
-            f.attrs.create("orcasong", orcasong.__version__, dtype="S6")
+            self.finish_file(f, summary)
 
     def run_multi(self, infiles, outfolder):
         """
@@ -147,7 +152,7 @@ class BaseProcessor:
         """ Initialize and connect the modules from the different stages. """
         components = [
             *self.get_cmpts_pre(infile=infile),
-            *self.get_cmpts_main(infile=infile, outfile=outfile),
+            *self.get_cmpts_main(),
             *self.get_cmpts_post(outfile=outfile),
         ]
         pipe = kp.Pipeline(timeit=timeit)
@@ -177,7 +182,7 @@ class BaseProcessor:
         return cmpts
 
     @abstractmethod
-    def get_cmpts_main(self, infile, outfile):
+    def get_cmpts_main(self):
         """  Produce and store the samples as 'samples' in the blob. """
         raise NotImplementedError
 
@@ -207,6 +212,21 @@ class BaseProcessor:
             "chunksize": self.chunksize,
             "flush_frequency": self.flush_frequency}))
         return cmpts
+
+    def finish_file(self, f, summary):
+        """
+        Work with the output file after the pipe has finished.
+
+        Parameters
+        ----------
+        f : h5py.File
+            The opened output file.
+        summary : km3pipe.Blob
+            The output from pipe.drain().
+
+        """
+        # Add current orcasong version to h5 file
+        f.attrs.create("orcasong", orcasong.__version__, dtype="S6")
 
 
 class FileBinner(BaseProcessor):
@@ -246,17 +266,21 @@ class FileBinner(BaseProcessor):
         self.hit_weights = hit_weights
         super().__init__(**kwargs)
 
-    def get_cmpts_main(self, infile, outfile):
+    def get_cmpts_main(self):
         """ Generate nD images. """
         cmpts = []
         if self.add_bin_stats:
             cmpts.append((modules.BinningStatsMaker, {
-                "outfile": outfile,
                 "bin_edges_list": self.bin_edges_list}))
         cmpts.append((modules.ImageMaker, {
             "bin_edges_list": self.bin_edges_list,
             "hit_weights": self.hit_weights}))
         return cmpts
+
+    def finish_file(self, f, summary):
+        super().finish_file(f, summary)
+        if self.add_bin_stats:
+            plot_binstats.add_hists_to_h5file(summary["BinningStatsMaker"], f)
 
     def run_multi(self, infiles, outfolder, save_plot=False):
         """
@@ -336,7 +360,7 @@ class FileGraph(BaseProcessor):
         self.hit_infos = hit_infos
         super().__init__(**kwargs)
 
-    def get_cmpts_main(self, infile, outfile):
+    def get_cmpts_main(self):
         return [((modules.PointMaker, {
             "max_n_hits": self.max_n_hits,
             "time_window": self.time_window,

@@ -187,9 +187,6 @@ class BinningStatsMaker(kp.Module):
     bin_edges_list : List
         List with the names of the fields to bin, and the respective bin edges,
         including the left- and right-most bin edge.
-    outfile : str, optional
-        The binning stats will get stored in this file afer completion.
-        If None, they don't get stored.
     res_increase : int
         Increase the number of bins by this much in the hists (so that one
         can see if the edges have been placed correctly). Is never used
@@ -202,7 +199,6 @@ class BinningStatsMaker(kp.Module):
 
     def configure(self):
         self.bin_edges_list = self.require('bin_edges_list')
-        self.outfile = self.get("outfile", default=None)
         self.res_increase = self.get("res_increase", default=5)
         self.bin_plot_freq = 1
 
@@ -274,8 +270,6 @@ class BinningStatsMaker(kp.Module):
         hist : The number of hist in each bin of the hist_bin_edges.
 
         """
-        if self.outfile is not None:
-            plot_binstats.add_hists_to_h5file(self.hists, self.outfile)
         return self.hists
 
     def _is_in_limits(self, hits, excluded=None):
@@ -330,7 +324,7 @@ class PointMaker(kp.Module):
         if self.hit_infos is None:
             self.hit_infos = blob["Hits"].dtype.names
         if self._dset_name is None:
-            self._dset_name = ", ".join(self.hit_infos + ("is_valid", ))
+            self._dset_name = ", ".join(tuple(self.hit_infos) + ("is_valid", ))
         points, n_hits = self.get_points(blob)
         blob[self.store_as] = kp.NDArray(
             np.expand_dims(points, 0), h5loc="x", title=self._dset_name)
