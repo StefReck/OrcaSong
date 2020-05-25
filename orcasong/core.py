@@ -193,7 +193,7 @@ class BaseProcessor:
             cmpts.append((modules.EventSkipper, {
                 "event_skipper": self.event_skipper}))
 
-        keys_keep = ['samples', 'mc_info']
+        keys_keep = ['samples', 'mc_info', "header", "raw_header"]
         if self.keep_event_info:
             keys_keep.append('EventInfo')
         if self.keep_mc_tracks:

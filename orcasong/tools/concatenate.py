@@ -256,7 +256,8 @@ def is_folder_ignored(folder_name):
     Also remove bin_stats.
 
     """
-    return '_i_' in folder_name or "bin_stats" in folder_name
+    return any([s in folder_name for s in (
+        '_i_', "bin_stats", "raw_header", "header")])
 
 
 def get_compopts(file):
