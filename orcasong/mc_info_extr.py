@@ -14,7 +14,7 @@ import numpy as np
 __author__ = 'Stefan Reck'
 
 
-def get_real_data(blob):
+def get_real_data(blob,n_gen):
     """
     Get info present in real data.
     Designed for the 2017 one line runs.
@@ -31,7 +31,7 @@ def get_real_data(blob):
     return track
 
 
-def get_pure_noise(blob):
+def get_pure_noise(blob,n_gen):
     """
     For simulated pure noise events, which have particle_type 0.
 
