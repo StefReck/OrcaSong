@@ -53,6 +53,9 @@ class BaseProcessor:
         If True, will keep the "event_info" table [default: True].
     keep_mc_tracks : bool
         If True, will keep the "McTracks" table. It's large! [default: False]
+    n_gen: int
+    	Parse the number of generated events per file for the specific production.
+    	Needed for correct neutrino weighting.
 
     Attributes
     ----------
@@ -85,7 +88,8 @@ class BaseProcessor:
                  event_skipper=None,
                  chunksize=32,
                  keep_event_info=True,
-                 keep_mc_tracks=False):
+                 keep_mc_tracks=False,
+                 n_gen=1):
         self.mc_info_extr = mc_info_extr
         self.det_file = det_file
         self.center_time = center_time
@@ -95,6 +99,7 @@ class BaseProcessor:
         self.chunksize = chunksize
         self.keep_event_info = keep_event_info
         self.keep_mc_tracks = keep_mc_tracks
+        self.n_gen = n_gen
 
         self.n_statusbar = 1000
         self.n_memory_observer = 1000
@@ -192,7 +197,8 @@ class BaseProcessor:
         if self.mc_info_extr is not None:
             cmpts.append((modules.McInfoMaker, {
                 "mc_info_extr": self.mc_info_extr,
-                "store_as": "mc_info"}))
+                "store_as": "mc_info",
+                "n_gen": self.n_gen}))
 
         if self.event_skipper is not None:
             cmpts.append((modules.EventSkipper, {

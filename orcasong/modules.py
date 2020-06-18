@@ -21,15 +21,19 @@ class McInfoMaker(kp.Module):
         a dict with the desired mc_infos.
     store_as : str
         Store the mcinfo with this name in the blob.
+    n_gen: int
+    	Number of generated events per file for the specific production.
+    	Needed for correct neutrino weighting.
 
     """
 
     def configure(self):
         self.mc_info_extr = self.require('mc_info_extr')
         self.store_as = self.require('store_as')
+        self.n_gen = self.require('n_gen')
 
     def process(self, blob):
-        track = self.mc_info_extr(blob)
+        track = self.mc_info_extr(blob,self.n_gen)
         dtypes = [(key, np.float64) for key in track.keys()]
         kp_hist = kp.dataclasses.Table(
             track, dtype=dtypes,  h5loc='y', name='event_info')
