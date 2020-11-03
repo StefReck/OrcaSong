@@ -53,8 +53,8 @@ def get_std_reco(blob):
 
 	Returns
 	-------
-	a few reco parameters : float
-		A few common parameters, but not all. Can be expanded.
+	std_reco_info : dict
+		Dict with the most common std reco params. Can be expanded.
 
 	"""   
 	
@@ -100,10 +100,12 @@ def get_std_reco(blob):
 	if 4 in rec_stages_best_track:
 	
 		std_energy = best_track["E"]
-	
+		lik_energy = best_track["JENERGY_CHI2"]
+		
 	else:
 		std_energy = dummy_value
-	
+		lik_energy = dummy_value
+		
 	#vertex and length from JStart
 	if 5 in rec_stages_best_track:	
 	
@@ -120,8 +122,16 @@ def get_std_reco(blob):
 		std_pos_z = dummy_value
 	
 		std_length = dummy_value	
+	
+	std_reco_info = {
+		'std_dir_x':std_dir_x,'std_dir_y':std_dir_y,'std_dir_z':std_dir_z,
+		'std_beta0':std_beta0,'std_lik':std_lik,'std_n_hits_gandalf':std_n_hits_gandalf,
+		
+		'std_pos_x':std_pos_x,'std_pos_y':std_pos_y,'std_pos_z':std_pos_z,
+		'std_energy':std_energy,'std_lik_energy':lik_energy,'std_length':std_length,
+		}
 
-	return std_dir_x,std_dir_y,std_dir_z,std_beta0,std_lik,std_n_hits_gandalf,std_pos_x,std_pos_y,std_pos_z,std_energy,std_length
+	return std_reco_info
 	
 	
 def get_real_data_info_extr(input_file):
@@ -180,18 +190,9 @@ def get_real_data_info_extr(input_file):
 		#get all the std reco info		
 		if has_std_reco:
 			
-			std_dir_x,std_dir_y,std_dir_z,std_beta0,std_lik,std_n_hits_gandalf,std_pos_x,std_pos_y,std_pos_z,std_energy,std_length = get_std_reco(blob)
-		
-
-			std_info = {
-			'std_dir_x':std_dir_x,'std_dir_y':std_dir_y,'std_dir_z':std_dir_z,
-			'std_beta0':std_beta0,'std_lik':std_lik,'std_n_hits_gandalf':std_n_hits_gandalf,
+			std_reco_info = get_std_reco(blob)
 			
-			'std_pos_x':std_pos_x,'std_pos_y':std_pos_y,'std_pos_z':std_pos_z,
-			'std_energy':std_energy,'std_length':std_length,
-			}
-			
-			track.update(std_info)
+			track.update(std_reco_info)
 
 		return track
 
@@ -247,17 +248,10 @@ def get_random_noise_mc_info_extr(input_file):
 		
 		#get all the std reco info		
 		if has_std_reco:
-			std_dir_x,std_dir_y,std_dir_z,std_beta0,std_lik,std_n_hits_gandalf,std_pos_x,std_pos_y,std_pos_z,std_energy,std_length = get_std_reco(blob)
-
-			std_info = {
-			'std_dir_x':std_dir_x,'std_dir_y':std_dir_y,'std_dir_z':std_dir_z,
-			'std_beta0':std_beta0,'std_lik':std_lik,'std_n_hits_gandalf':std_n_hits_gandalf,
 			
-			'std_pos_x':std_pos_x,'std_pos_y':std_pos_y,'std_pos_z':std_pos_z,
-			'std_energy':std_energy,'std_length':std_length,
-			}
+			std_reco_info = get_std_reco(blob)
 			
-			track.update(std_info)
+			track.update(std_reco_info)
 			
 		return track
 	
@@ -349,17 +343,9 @@ def get_neutrino_mc_info_extr(input_file):
  		#get all the std reco info		
 		if has_std_reco:
 	
-			std_dir_x,std_dir_y,std_dir_z,std_beta0,std_lik,std_n_hits_gandalf,std_pos_x,std_pos_y,std_pos_z,std_energy,std_length = get_std_reco(blob)
-
-			std_info = {
-			'std_dir_x':std_dir_x,'std_dir_y':std_dir_y,'std_dir_z':std_dir_z,
-			'std_beta0':std_beta0,'std_lik':std_lik,'std_n_hits_gandalf':std_n_hits_gandalf,
+			std_reco_info = get_std_reco(blob)
 			
-			'std_pos_x':std_pos_x,'std_pos_y':std_pos_y,'std_pos_z':std_pos_z,
-			'std_energy':std_energy,'std_length':std_length,
-			}
-			
-			track.update(std_info)
+			track.update(std_reco_info)
 
 		return track
 	
@@ -458,18 +444,10 @@ def get_muon_mc_info_extr(input_file):
 		
 		#get all the std reco info		
 		if has_std_reco:
-			std_dir_x,std_dir_y,std_dir_z,std_beta0,std_lik,std_n_hits_gandalf,std_pos_x,std_pos_y,std_pos_z,std_energy,std_length = get_std_reco(blob)
-		
-
-			std_info = {
-			'std_dir_x':std_dir_x,'std_dir_y':std_dir_y,'std_dir_z':std_dir_z,
-			'std_beta0':std_beta0,'std_lik':std_lik,'std_n_hits_gandalf':std_n_hits_gandalf,
 			
-			'std_pos_x':std_pos_x,'std_pos_y':std_pos_y,'std_pos_z':std_pos_z,
-			'std_energy':std_energy,'std_length':std_length,
-			}
+			std_reco_info = get_std_reco(blob)
 			
-			track.update(std_info)
+			track.update(std_reco_info)
 			
 		return track
 
