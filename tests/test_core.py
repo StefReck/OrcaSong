@@ -26,7 +26,7 @@ class TestFileBinner(TestCase):
                 ["time", np.linspace(0, 600, 3)],
                 ["channel_id", np.linspace(-0.5, 30.5, 3)],
             ],
-            mc_info_extr=orcasong.mc_info_extr.get_real_data,
+            mc_info_extr=orcasong.mc_info_extr.get_real_data_info_extr(MUPAGE_FILE),
             det_file=DET_FILE,
             add_t0=True,
         )
@@ -86,7 +86,7 @@ class TestFileGraph(TestCase):
             max_n_hits=3,
             time_window=[0, 50],
             hit_infos=["pos_z", "time", "channel_id"],
-            mc_info_extr=orcasong.mc_info_extr.get_real_data,
+            mc_info_extr=orcasong.mc_info_extr.get_real_data_info_extr(MUPAGE_FILE),
             det_file=DET_FILE,
             add_t0=True,
         )
