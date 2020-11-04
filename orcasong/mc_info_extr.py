@@ -175,7 +175,7 @@ def get_real_data_info_extr(input_file):
 
 		""" 
 	
-		event_info = blob['EventInfo']
+		event_info = blob['EventInfo'][0]
 	
 		#add n_hits info for the cut
 		n_hits = len(blob['Hits'])
@@ -242,7 +242,7 @@ def get_random_noise_mc_info_extr(input_file):
 
 		track = {
 			'event_id': event_info.event_id[0],
-			'run_id': event_info.run_id,
+			'run_id': event_info.run_id[0],
 			'particle_type': 0,
 		}
 		
@@ -307,12 +307,12 @@ def get_neutrino_mc_info_extr(input_file):
 		""" 
 		
 		#get general info about the event
-		event_id = blob['EventInfo'].event_id
-		run_id = blob["EventInfo"].run_id
+		event_id = blob['EventInfo'].event_id[0]
+		run_id = blob["EventInfo"].run_id[0]
 		#weights for neutrino analysis  
-		weight_w1 = blob["EventInfo"].weight_w1
-		weight_w2 = blob["EventInfo"].weight_w2
-		weight_w3 = blob["EventInfo"].weight_w3
+		weight_w1 = blob["EventInfo"].weight_w1[0]
+		weight_w2 = blob["EventInfo"].weight_w2[0]
+		weight_w3 = blob["EventInfo"].weight_w3[0]
 		
 		# first, look for the particular neutrino index of the production
 		p = 0 #for ORCA4 (and probably subsequent productions)
@@ -373,7 +373,7 @@ def get_muon_mc_info_extr(input_file):
 	#check if std reco is present
 	f = File(input_file,"r")
 	has_std_reco = "reco" in f.keys()
-	
+
 	#no n_gen here, but needed for concatenation
 	n_gen = 1
 	
@@ -400,9 +400,8 @@ def get_muon_mc_info_extr(input_file):
 
 		""" 
 		
-		# take for ORCA7 for example index 1, index 0 is the empty neutrino mc_track
-		event_id = blob['EventInfo'].event_id
-		run_id = blob["EventInfo"].run_id
+		event_id = blob['EventInfo'].event_id[0]
+		run_id = blob["EventInfo"].run_id[0]
 
 		p = 0 #for ORCA4 (and probably subsequent productions)
 
