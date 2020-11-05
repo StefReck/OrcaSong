@@ -130,7 +130,7 @@ def get_std_reco(blob):
 		'std_pos_x':std_pos_x,'std_pos_y':std_pos_y,'std_pos_z':std_pos_z,
 		'std_energy':std_energy,'std_lik_energy':lik_energy,'std_length':std_length,
 		}
-
+		
 	return std_reco_info
 	
 	
@@ -339,7 +339,7 @@ def get_neutrino_mc_info_extr(input_file):
 				 'weight_w1': weight_w1,'weight_w2': weight_w2,'weight_w3': weight_w3,
 				 'n_gen':n_gen,
 				}				 
-
+		print(is_cc)
  		#get all the std reco info		
 		if has_std_reco:
 	
