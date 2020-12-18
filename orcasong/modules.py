@@ -397,12 +397,17 @@ class DetApplier(kp.Module):
     correct_timeslew : bool
         If true, the time slewing of hits depending on their tot
         will be corrected.
+    center_hits_to : tuple, optional
+        Move the x-, y-, and z- center of the detector to this point.
+        E.g., if its (0,0,0), the hits and mchits will be
+        centered at xyz = 000.
 
     """
 
     def configure(self):
         self.det_file = self.require("det_file")
         self.correct_timeslew = self.get("correct_timeslew", default=True)
+        self.center_hits_to = self.get("center_hits_to", default=None)
 
         self.cprint(f"Calibrating with {self.det_file}")
         self.calib = kp.calib.Calibration(filename=self.det_file)
@@ -421,7 +426,17 @@ class DetApplier(kp.Module):
             blob["Hits"], correct_slewing=self.correct_timeslew)
         if "McHits" in blob:
             blob["McHits"] = self.calib.apply(blob["McHits"])
+        if self.center_hits_to:
+            self.move_center(blob)
         return blob
+
+    def move_center(self, blob):
+        dims = ("pos_x", "pos_y", "pos_z")
+        for i in range(len(dims)):
+            shift = self.center_hits_to[i] - self.calib.detector.dom_table[dims[i]].mean()
+            blob["Hits"]["pos_x"] += shift
+            if "McHits" in blob:
+                blob["McHits"]["pos_x"] += shift
 
 
 class HitRotator(kp.Module):
