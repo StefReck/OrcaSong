@@ -412,6 +412,7 @@ class DetApplier(kp.Module):
         self.cprint(f"Calibrating with {self.det_file}")
         self.calib = kp.calib.Calibration(filename=self.det_file)
         self._calib_checked = False
+        self._det_center = None
 
     def process(self, blob):
         if self._calib_checked is False:
@@ -431,9 +432,13 @@ class DetApplier(kp.Module):
         return blob
 
     def move_center(self, blob):
-        dims = ("pos_x", "pos_y", "pos_z")
-        for i in range(len(dims)):
-            shift = self.center_hits_to[i] - self.calib.detector.dom_table[dims[i]].mean()
+        if self._det_center is None:
+            self._det_center = [self.calib.detector.dom_table[d].mean()
+                                for d in ("pos_x", "pos_y", "pos_z")]
+            print(f"original detector center: {self._det_center}")
+
+        for i in range(3):
+            shift = self.center_hits_to[i] - self._det_center[i]
             blob["Hits"]["pos_x"] += shift
             if "McHits" in blob:
                 blob["McHits"]["pos_x"] += shift
