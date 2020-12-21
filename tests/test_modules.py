@@ -401,8 +401,9 @@ class TestDetApplier(TestCase):
         # self.blob = self.pump[0]
 
     def test_cache_center(self):
-        target = {"pos_x": 58.75166782379619, "pos_y": -21.500000000000007, "pos_z": 0}
-        self.assertDictEqual(target, self.deta._vector_shift)
+        target = {"pos_x": 58.75166782379619, "pos_y": -21.5, "pos_z": 0}
+        for d in ("pos_x", "pos_y", "pos_z"):
+            np.testing.assert_array_almost_equal(target[d], self.deta._vector_shift[d])
 
     def test_shift_is_applied_to_hits(self):
         blob = {"Hits": {
@@ -412,7 +413,7 @@ class TestDetApplier(TestCase):
         }}
         target = {
             "pos_x": np.ones(3) * 59.75166782379619,
-            "pos_y": np.ones(3) * -19.500000000000007,
+            "pos_y": np.ones(3) * -19.5,
             "pos_z": np.ones(3) * 3,
         }
         self.deta.shift_hits(blob)
