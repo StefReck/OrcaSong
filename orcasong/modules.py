@@ -399,8 +399,8 @@ class DetApplier(kp.Module):
         will be corrected.
     center_hits_to : tuple, optional
         Move the x-, y-, and z- center of the detector to this point.
-        E.g., if its (0,0,0), the hits and mchits will be
-        centered at xyz = 000.
+        E.g., if its (0, 0, None), the hits and mchits will be
+        centered at xy = 00, and z will be left untouched.
 
     """
 
@@ -412,7 +412,11 @@ class DetApplier(kp.Module):
         self.cprint(f"Calibrating with {self.det_file}")
         self.calib = kp.calib.Calibration(filename=self.det_file)
         self._calib_checked = False
-        self._det_center = None
+
+        if self.center_hits_to:
+            self._cache_shift_center()
+        # dict  dim_name: float
+        self._shift_vector = None
 
     def process(self, blob):
         if self._calib_checked is False:
@@ -428,20 +432,30 @@ class DetApplier(kp.Module):
         if "McHits" in blob:
             blob["McHits"] = self.calib.apply(blob["McHits"])
         if self.center_hits_to:
-            self.move_center(blob)
+            self.shift_hits(blob)
         return blob
 
-    def move_center(self, blob):
-        if self._det_center is None:
-            self._det_center = [self.calib.detector.dom_table[d].mean()
-                                for d in ("pos_x", "pos_y", "pos_z")]
-            print(f"original detector center: {self._det_center}")
-
-        for i in range(3):
-            shift = self.center_hits_to[i] - self._det_center[i]
-            blob["Hits"]["pos_x"] += shift
+    def shift_hits(self, blob):
+        """ Translate hits by cached vector. """
+        for dim_name in ("pos_x", "pos_y", "pos_z"):
+            blob["Hits"][dim_name] += self._shift_vector[dim_name]
             if "McHits" in blob:
-                blob["McHits"]["pos_x"] += shift
+                blob["McHits"][dim_name] += self._shift_vector[dim_name]
+
+    def _cache_shift_center(self):
+        det_center, shift = {}, {}
+        for i, dim_name in enumerate(("pos_x", "pos_y", "pos_z")):
+            center = self.calib.detector.dom_table[dim_name].mean()
+            det_center[dim_name] = center
+
+            if self.center_hits_to[i] is None:
+                shift[dim_name] = 0
+            else:
+                shift[dim_name] = self.center_hits_to[i] - center
+
+        self._shift_vector = shift
+        self.cprint(f"original detector center: {det_center}")
+        self.cprint(f"shift for hits: {self._shift_vector}")
 
 
 class HitRotator(kp.Module):
