@@ -398,7 +398,8 @@ class DetApplier(kp.Module):
         If true, the time slewing of hits depending on their tot
         will be corrected.
     center_hits_to : tuple, optional
-        Move the x-, y-, and z- center of the detector to this point.
+        Translate the xyz positions of the hits (and mchits), as if
+        the detector was centered at the given position.
         E.g., if its (0, 0, None), the hits and mchits will be
         centered at xy = 00, and z will be left untouched.
 

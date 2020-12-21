@@ -41,8 +41,8 @@ class BaseProcessor:
     center_hits_to : tuple, optional
         Translate the xyz positions of the hits (and mchits), as if
         the detector was centered at the given position.
-        E.g.: (0, 0, 0) will be like if the center of the detector
-        was at xyz = 000.
+        E.g., if its (0, 0, None), the hits and mchits will be
+        centered at xy = 00, and z will be left untouched.
     add_t0 : bool
         If true, add t0 to the time of hits and mchits. If using a
         det_file, this will already have been done automatically
