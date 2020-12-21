@@ -413,10 +413,11 @@ class DetApplier(kp.Module):
         self.calib = kp.calib.Calibration(filename=self.det_file)
         self._calib_checked = False
 
+        # dict  dim_name: float
+        self._vector_shift = None
+
         if self.center_hits_to:
             self._cache_shift_center()
-        # dict  dim_name: float
-        self._shift_vector = None
 
     def process(self, blob):
         if self._calib_checked is False:
@@ -438,9 +439,9 @@ class DetApplier(kp.Module):
     def shift_hits(self, blob):
         """ Translate hits by cached vector. """
         for dim_name in ("pos_x", "pos_y", "pos_z"):
-            blob["Hits"][dim_name] += self._shift_vector[dim_name]
+            blob["Hits"][dim_name] += self._vector_shift[dim_name]
             if "McHits" in blob:
-                blob["McHits"][dim_name] += self._shift_vector[dim_name]
+                blob["McHits"][dim_name] += self._vector_shift[dim_name]
 
     def _cache_shift_center(self):
         det_center, shift = {}, {}
@@ -453,9 +454,9 @@ class DetApplier(kp.Module):
             else:
                 shift[dim_name] = self.center_hits_to[i] - center
 
-        self._shift_vector = shift
+        self._vector_shift = shift
         self.cprint(f"original detector center: {det_center}")
-        self.cprint(f"shift for hits: {self._shift_vector}")
+        self.cprint(f"shift for hits: {self._vector_shift}")
 
 
 class HitRotator(kp.Module):
