@@ -27,8 +27,6 @@ build-singularity:
     - singularity build $SINGULARITY_IMAGE Singularity
     - apt-get update -qy
     - apt-get install -qy lftp
-    - apt-get install -qy ssh
     - mkdir -p ~/.ssh/
     - touch ~/.ssh/known_hosts
-    - ssh-keyscan -H $KM3NET_SFTP_HOST >> ~/.ssh/known_hosts
     - lftp -u $KM3NET_SFTP_USER,$KM3NET_SFTP_PASSWORD sftp://$KM3NET_SFTP_HOST -e "set ssl:verify-certificate no; cd singularity/; put $SINGULARITY_IMAGE; bye"
