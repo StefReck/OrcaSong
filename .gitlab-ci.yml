@@ -26,7 +26,8 @@ build-singularity:
     - singularity --version
     - singularity build $SINGULARITY_IMAGE Singularity
     - apt-get update -qy
-    - apt-get install -y lftp
+    - apt-get install -qy lftp
+    - apt-get install -qy ssh
     - mkdir -p ~/.ssh/
     - touch ~/.ssh/known_hosts
     - ssh-keyscan -H $KM3NET_SFTP_HOST >> ~/.ssh/known_hosts
