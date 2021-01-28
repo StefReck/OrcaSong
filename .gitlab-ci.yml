@@ -123,3 +123,5 @@ singularity:
     - lftp -u $KM3NET_SFTP_USER,$KM3NET_SFTP_PASSWORD sftp://$KM3NET_SFTP_HOST -e "set sftp:auto-confirm yes; set ssl:verify-certificate no; cd singularity/; put $SINGULARITY_IMAGE; bye"
   tags:
     - docker
+  only:
+    - tags
