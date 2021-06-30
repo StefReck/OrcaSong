@@ -2,15 +2,19 @@ import warnings
 import numpy as np
 
 
-def get_real_data(infile, only_downgoing_tracks=False):
+class BundleDataExtractor:
     """ Get info present in real data. """
 
-    def extr(blob):
+    def __init__(self, infile, only_downgoing_tracks=False):
+        self.only_downgoing_tracks = only_downgoing_tracks
+
+    def __call__(self, blob):
         # just take everything from event info
         if not len(blob['EventInfo']) == 1:
             warnings.warn(f"Event info has length {len(blob['EventInfo'])}, not 1")
         track = dict(zip(blob['EventInfo'].dtype.names, blob['EventInfo'][0]))
-        track.update(**get_best_track(blob, only_downgoing_tracks=only_downgoing_tracks))
+        track.update(**get_best_track(
+            blob, only_downgoing_tracks=self.only_downgoing_tracks))
 
         track["n_hits"] = len(blob["Hits"])
         track["n_triggered_hits"] = blob["Hits"]["triggered"].sum()
@@ -28,8 +32,6 @@ def get_real_data(infile, only_downgoing_tracks=False):
             n_hits_intime = np.nan
         track["n_hits_intime"] = n_hits_intime
         return track
-
-    return extr
 
 
 def get_only_first_hit_per_pmt(hits):
@@ -98,233 +100,212 @@ def get_best_track(blob, missing_value=np.nan, only_downgoing_tracks=False):
         return {f"jg_{name}_reco": missing_value for name in names}
 
 
-class MupageMcInfoExtractor:
+class BundleMCExtractor:
     """
-    For mupage muon simulations.
+    For atmospheric muon studies on mupage or corsika simulations.
 
-    Store some mc infos about the event as a whole (direction, n_muons, ...),
-    as well as info about each muon in the sample.
-
-    Attributes
+    Parameters
     ----------
-    detx_file : str
-        Detector file for reading out the positions of DOMs (for calculating
-        distance to muon track).
-        Required for top_n_muons and min_n_hits.
     inactive_du : int or None
-        Dont count mchits in this du.
-    min_n_mchits : int
-        Dont store info for muons with less than this mchits.
-    top_n_muons : int
-        Store things like energy, position, ... for the top_n_muons with the
-        highest mchits in the active line.
-    missing_value : float
-        If a value is missing, use this value instead.
-    with_primary : bool
-        Add info about the primary particle. Corsika only! Also removes
-        the primary from mctracks for stuff like summed energy...
-    mc_index : int, optional
-        Add a column called mc_index containing this number.
+        Don't count mchits in this du.
+    min_n_mchits_list : tuple
+        How many mchits does a muon have to produce to be counted?
+        Create a seperate set of entries for each number in the tuple.
+    plane_point : tuple
+        For bundle diameter: XYZ coordinates of where the center of the
+        plane is in which the muon positions get calculated. Should be set
+        to the center of the detector!
+    is_corsika : bool
+        Use this when using Corsika!!!
     only_downgoing_tracks : bool
         For tracks (JG reco), consider only the ones that are downgoing.
+    missing_value : float
+        If a value is missing, use this value instead.
 
     """
     def __init__(self,
                  infile,
                  inactive_du=1,
-                 min_n_mchits=10,
-                 min_n_hits=5,
-                 min_n_hits_time_window=35,
-                 top_n_muons=20,
-                 missing_value=np.nan,
-                 with_primary=True,
+                 min_n_mchits_list=(0, 1, 10),
+                 plane_point=(17, 17, 111),
+                 is_corsika=True,
                  only_downgoing_tracks=False,
-                 additional_stuff=False):
+                 missing_value=np.nan,
+                 ):
+        # TODO remove???
         mc_index = get_mc_index(infile)
         print(f"Using mc_index {mc_index}")
 
         self.inactive_du = inactive_du
-        self.min_n_mchits = min_n_mchits
-        self.min_n_hits = min_n_hits
-        self.min_n_hits_time_window = min_n_hits_time_window
-        self.top_n_muons = top_n_muons
+        self.min_n_mchits_list = min_n_mchits_list
+        self.plane_point = plane_point
         self.missing_value = missing_value
-        self.with_primary = with_primary
+        self.is_corsika = is_corsika
         self.mc_index = mc_index
         self.only_downgoing_tracks = only_downgoing_tracks
-        self.additional_stuff = additional_stuff
 
-        self.bundle_settings = {
-            "plane_mode": "normal",
-            "plane_point_mode": "mid_4line",
-        }
-        self.real_data_extr = get_real_data(infile, only_downgoing_tracks=only_downgoing_tracks)
+        self.data_extractor = BundleDataExtractor(
+            infile, only_downgoing_tracks=only_downgoing_tracks)
 
     def __call__(self, blob):
-        mc_info = self.real_data_extr(blob)
+        mc_info = self.data_extractor(blob)
 
-        # all muons in a bundle are parallel, so just take dir of first muon
-        mc_info["dir_x"] = blob["McTracks"].dir_x[0]
-        mc_info["dir_y"] = blob["McTracks"].dir_y[0]
-        mc_info["dir_z"] = blob["McTracks"].dir_z[0]
+        if self.is_corsika:
+            # Corsika has a primary particle. Store infos about it
+            prim_track = blob["McTracks"][0]
 
-        primary_track = None
-        if self.with_primary:
-            # store info about the primary, which is track 0 with id 0
-            to_store = ("dir_x", "dir_y", "dir_z", "pos_x", "pos_y", "pos_z",
-                        "pdgid", "energy", "time")
-            if blob["McTracks"][0]["id"] == 0:
-                primary_track = blob["McTracks"][0]
-                for fld in to_store:
-                    mc_info[f"primary_{fld}"] = primary_track[fld]
-                primary_xy = get_primary_onplane(primary_track, self.bundle_settings)
-                mc_info["primary_x"] = primary_xy[0]
-                mc_info["primary_y"] = primary_xy[1]
-                # remove primary from all the other stuff
-                blob["McTracks"] = blob["McTracks"][1:]
-            else:
-                warnings.warn("Error finding primary: mc_tracks[0]['id'] != 0")
-                for fld in to_store:
-                    mc_info[f"primary_{fld}"] = self.missing_value
-                mc_info["primary_x"] = self.missing_value
-                mc_info["primary_y"] = self.missing_value
+            # primary should be track 0 with id 0
+            if prim_track["id"] != 0:
+                raise ValueError("Error finding primary: mc_tracks[0]['id'] != 0")
 
-        center_of_mass = get_com(blob, self.bundle_settings)
-        mc_info["center_of_mass_x"] = center_of_mass[0]
-        mc_info["center_of_mass_y"] = center_of_mass[1]
+            # direction of the primary
+            mc_info["dir_x"] = prim_track.dir_x
+            mc_info["dir_y"] = prim_track.dir_y
+            mc_info["dir_z"] = prim_track.dir_z
+            # use primary direction as plane normal
+            plane_normal = np.array(prim_track[["dir_x", "dir_y", "dir_z"]])
 
-        mc_info["sim_energy"] = blob["McTracks"]["energy"].sum()
-        mc_info["sim_energy_lost_in_can"] = blob["McTracks"]["energy_lost_in_can"].sum()
+            for fld in ("pos_x", "pos_y", "pos_z", "pdgid", "energy", "time"):
+                mc_info[f"primary_{fld}"] = prim_track[fld]
 
-        # mc_hits in active line
+            # remove primary for the following, since it's not a muon
+            blob["McTracks"] = blob["McTracks"][1:]
+        else:
+            # In mupage, all muons in a bundle are parallel. So just take dir of first muon
+            mc_info["dir_x"] = blob["McTracks"].dir_x[0]
+            mc_info["dir_y"] = blob["McTracks"].dir_y[0]
+            mc_info["dir_z"] = blob["McTracks"].dir_z[0]
+            plane_normal = None
+
+        # n_mc_hits of each muon in active dus
         mchits_per_muon = get_mchits_per_muon(blob, inactive_du=self.inactive_du)
-        # actual hits
-        hits_per_muon = self.get_hits_per_muon(blob)
-        # mctracks, but only muons with >= min_n_mchits
-        mc_tracks_sel = blob["McTracks"][mchits_per_muon >= self.min_n_mchits]
-        # mctracks, but only muons with >= min_n_hits
-        mc_tracks_sel_hit = blob["McTracks"][hits_per_muon >= self.min_n_hits]
 
-        # n_mchits of the visible muons
-        mc_info["n_mc_hits"] = np.sum(
-            mchits_per_muon[mchits_per_muon >= self.min_n_mchits])  # TODO rename?
-        # n_hits of ALL muons
-        mc_info["n_signal_hits"] = np.sum(hits_per_muon)
-        # n_muons with at least the given hits or mchits
-        mc_info[f"n_muons_1_hit"] = (hits_per_muon >= 1).sum()
-        n_muons_sel = len(mc_tracks_sel)
-        mc_info[f"n_muons_{self.min_n_mchits}_mchits"] = n_muons_sel
-        n_muons_sel_hits = len(mc_tracks_sel_hit)
-        mc_info[f"n_muons_{self.min_n_hits}_hits"] = n_muons_sel_hits
+        for min_n_mchits in self.min_n_mchits_list:
+            if min_n_mchits == 0:
+                mc_tracks_sel = blob["McTracks"]
+                suffix = "sim"
+            else:
+                mc_tracks_sel = blob["McTracks"][mchits_per_muon >= min_n_mchits]
+                suffix = f"{min_n_mchits}_mchits"
 
-        # properties of all simulated muons
-        add_info_from_mctracks(
-            mc_info, blob["McTracks"], self.bundle_settings, missing_value=self.missing_value, suffix="_sim", primary_track=primary_track, center_of_mass=center_of_mass)
-        # properties of all VISIBLE muons (mchit criterium)
-        add_info_from_mctracks(
-            mc_info, mc_tracks_sel, self.bundle_settings, missing_value=self.missing_value, primary_track=primary_track, center_of_mass=center_of_mass)
-        # properties of all VISIBLE muons (hit criterium)
-        add_info_from_mctracks(
-            mc_info, mc_tracks_sel_hit, self.bundle_settings, missing_value=self.missing_value, suffix="_hit", primary_track=primary_track, center_of_mass=center_of_mass)
+            # total number of mchits of all muons
+            mc_info[f"n_mc_hits_{suffix}"] = np.sum(
+                mchits_per_muon[mchits_per_muon >= min_n_mchits])
 
-        if self.additional_stuff:
-            # additional stuff, might delete later
-            # TODO add center_of_mass, change suffix to _3hit for 2nd one
-            add_info_from_mctracks(
-                mc_info, blob["McTracks"][hits_per_muon >= 1],
-                self.bundle_settings, missing_value=self.missing_value, suffix="_1hit", primary_track=primary_track)
-            add_info_from_mctracks(
-                mc_info, blob["McTracks"][hits_per_muon >= 3],
-                self.bundle_settings, missing_value=self.missing_value, suffix="_3hit", primary_track=primary_track)
+            # number of muons with at least the given number of mchits
+            mc_info[f"n_muons_{suffix}"] = len(mc_tracks_sel)
 
-        if self.top_n_muons:
-            # For highest mc_hits muons (even if they have less than the
-            # threshold), store these parameters, muon-by-muon
-            for i, muon_info in enumerate(self.muon_info_gen(blob, mchits_per_muon, primary_mctracks=primary_track)):
-                if muon_info is not None:
-                    mc_info[f"energy_{i}"] = muon_info["mc_tracks"]["energy"]
-                    mc_info[f"n_mc_hits_{i}"] = muon_info["n_mc_hits"]
-                    mc_info[f"pos_x_{i}"] = muon_info["points"][0]
-                    mc_info[f"pos_y_{i}"] = muon_info["points"][1]
-                    mc_info[f"min_dist_{i}"] = muon_info["dist"]
-                else:
-                    mc_info[f"energy_{i}"] = self.missing_value
-                    mc_info[f"n_mc_hits_{i}"] = self.missing_value
-                    mc_info[f"pos_x_{i}"] = self.missing_value
-                    mc_info[f"pos_y_{i}"] = self.missing_value
-                    mc_info[f"min_dist_{i}"] = self.missing_value
+            # summed up energy of all muons
+            mc_info[f"energy_{suffix}"] = np.sum(mc_tracks_sel.energy)
+            mc_info[f"energy_lost_in_can_{suffix}"] = np.sum(
+                mc_tracks_sel.energy_lost_in_can)
+
+            # bundle diameter; only makes sense for 2+ muons
+            if len(mc_tracks_sel) >= 2:
+                positions_plane = get_plane_positions(
+                    positions=mc_tracks_sel[["pos_x", "pos_y", "pos_z"]].to_dataframe().to_numpy(),
+                    directions=mc_tracks_sel[["dir_x", "dir_y", "dir_z"]].to_dataframe().to_numpy(),
+                    plane_point=self.plane_point,
+                    plane_normal=plane_normal,
+                )
+                pairwise_distances = get_pairwise_distances(positions_plane)
+                mc_info[f"max_pair_dist_{suffix}"] = pairwise_distances.max()
+                mc_info[f"mean_pair_dist_{suffix}"] = pairwise_distances.mean()
+            else:
+                mc_info[f"max_pair_dist_{suffix}"] = self.missing_value
+                mc_info[f"mean_pair_dist_{suffix}"] = self.missing_value
 
         if self.mc_index:
             mc_info["mc_index"] = self.mc_index
 
         return mc_info
 
-    def muon_info_gen(self, blob, mchits_per_muon, primary_mctracks=None):
-        """
-        Yield muon info of blob, muon-by-muon, give None if there are no
-        more muons.
-        """
-        desc_order = np.argsort(-mchits_per_muon)
 
-        points_on_plane = BundleCollider.from_mctracks(
-            blob["McTracks"], primary_mctracks=primary_mctracks, **self.bundle_settings,
-        ).get_points_on_plane()
+def get_plane_positions(positions, directions, plane_point, plane_normal=None):
+    """
+    Get the position of each muon in a 2d plane.
+    Length will be preserved, i.e. 1m in 3d space is also 1m in plane space.
 
-        for i in range(self.top_n_muons):
-            if i < len(desc_order):
-                muon_index = desc_order[i]
-                yield {
-                    "mc_tracks": blob["McTracks"][muon_index],
-                    "n_mc_hits": mchits_per_muon[muon_index],
-                    "points": points_on_plane[muon_index],
-                    "dist": get_min_distance_from_doms(
-                        blob["McTracks"][muon_index],
-                        dom_positions=self.dom_positions,
-                    )
-                }
-            else:
-                yield None
+    Parameters
+    ----------
+    positions : np.array
+        The position of each muon in 3d cartesian space, shape (n_muons, 3).
+    directions : np.array
+        The direction of each muon as a cartesian unit vector, shape (n_muons, 3).
+    plane_point : np.array
+        A 3d cartesian point on the plane. This will be (0, 0) in the plane
+        coordinate system. Shape (3, ).
+    plane_normal : np.array, optional
+        A 3d cartesian vector perpendicular to the plane, shape (3, ).
+        Default: Use directions if all muons are parallel, otherwise raise.
 
-    def get_hits_per_muon(self, blob):
-        """
-        Get the actual number of hits each particle in McTracks produces.
-        Done by matching mchits to hits.
+    Returns
+    -------
+    positions_plane : np.array
+        The 2d position of each muon in the plane, shape (n_muons, 2).
 
-        time_window: Timewindow in ns around each hit. A mchit must be
-            in this time window on the same pmt for the hit to be counted
-            as signal.
+    """
+    if plane_normal is None:
+        if not np.all(directions == directions[0]):
+            raise ValueError(
+                "Muon tracks are not all parallel: plane_normal has to be specified!")
+        plane_normal = directions[0]
 
-        """
-        merged = match_mchits(blob["Hits"], blob["McHits"], append=False)
-        has_mchit_in_timewindow = (
-            (~np.isnan(merged["mchit_dt"])) & (np.abs(merged["mchit_dt"]) <= self.min_n_hits_time_window)
-        )
-        origin = merged["mchit_origin"]
-        hits_per_muon = np.zeros(len(blob["McTracks"]), dtype=int)
-        for i, muon_id in enumerate(blob["McTracks"]["id"]):
-            hits_per_muon[i] = (
-                (origin == muon_id) & has_mchit_in_timewindow
-            ).sum()
-        return hits_per_muon
+    # get the 3d points where each muon collides with the plane
+    points = []
+    for i in range(len(directions)):
+        ndotu = np.dot(plane_normal, directions[i])
+        if abs(ndotu) < 1e-6:
+            raise ValueError("no intersection or line is within plane")
+
+        w = positions[i] - plane_point
+        si = -np.dot(plane_normal, w) / ndotu
+        psi = w + si * directions[i] + plane_point
+        points.append(psi)
+    points = np.array(points)
+
+    # Get the unit vectors of the plane. u is 0 in x, v is 0 in y.
+    u = np.array([1, 0, -plane_normal[0] / plane_normal[2]])
+    v = np.array([0, 1, -plane_normal[1] / plane_normal[2]])
+    # norm:
+    u = u / np.linalg.norm(u)
+    v = v / np.linalg.norm(v)
+
+    # xy coordinates in plane
+    x_dash = (points[:, 0] - plane_point[0]) / u[0]
+    y_dash = (points[:, 1] - plane_point[1]) / v[1]
+    position_plane = np.array([x_dash, y_dash]).T
+
+    return position_plane
 
 
-class ExtendedBundle(MupageMcInfoExtractor):
-    def __init__(self, *args, detx_file=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.detx_file = detx_file
+def get_pairwise_distances(positions_plane, as_matrix=False):
+    """
+    Get the perpendicular distance between each muon pair.
 
-        if detx_file is not None:
-            self.dom_positions = get_dom_positions(
-                detx_file, inactive_du=self.inactive_du)
-        else:
-            self.dom_positions = None
+    Parameters
+    ----------
+    positions_plane : np.array
+        The 2d position of each muon in a plane, shape (n_muons, 2).
+    as_matrix : bool
+        Return the whole 2D distance matrix.
 
-    def __call__(self, blob):
-        # type is now called pdgid. Rename pdgid to type for backward compatibility:
-        info_dict = super()(blob)
-        if "primary_type" in info_dict:
-            info_dict["primary_pdgid"] = info_dict.pop("primary_type")
-        return info_dict
+    Returns
+    -------
+    np.array
+        The distances between each pair of muons.
+        1D if as_matrix is False (default), else 2D.
+
+    """
+    pos_x, pos_y = positions_plane[:, 0], positions_plane[:, 1]
+
+    dists_x = np.expand_dims(pos_x, -2) - np.expand_dims(pos_x, -1)
+    dists_y = np.expand_dims(pos_y, -2) - np.expand_dims(pos_y, -1)
+    l2_dists = np.sqrt(dists_x**2 + dists_y**2)
+    if as_matrix:
+        return l2_dists
+    else:
+        return l2_dists[np.triu_indices_from(l2_dists, k=1)]
 
 
 def get_mchits_per_muon(blob, inactive_du=None):
@@ -341,7 +322,7 @@ def get_mchits_per_muon(blob, inactive_du=None):
     Returns
     -------
     np.array
-        n_mchits, len = number of muons
+        n_mchits, len = number of muons --> blob["McTracks"]["id"]
 
     """
     ids = blob["McTracks"]["id"]
