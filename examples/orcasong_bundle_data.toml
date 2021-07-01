@@ -1,4 +1,4 @@
-# for atmospheric muon bunldes, data ORCA4, graph network
+# for atmospheric muon bundles, data ORCA4, graph network
 mode = "graph"
 max_n_hits = 2000
 time_window = [-250, 1000]
