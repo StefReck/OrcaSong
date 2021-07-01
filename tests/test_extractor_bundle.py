@@ -74,7 +74,7 @@ class TestGetPlanePositions(TestCase):
             plane_point=np.array([0, 0, 0]),
             plane_normal=np.array([-1, 0, 1]),
         )
-        np.testing.assert_array_equal(result, np.array([0, 0]))
+        np.testing.assert_array_equal(result, np.array([[0, 0]]))
 
 
 class TestPairwiseDistances(TestCase):
