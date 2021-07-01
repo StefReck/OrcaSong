@@ -4,7 +4,6 @@ import numpy as np
 
 class BundleDataExtractor:
     """ Get info present in real data. """
-
     def __init__(self, infile, only_downgoing_tracks=False):
         self.only_downgoing_tracks = only_downgoing_tracks
 
@@ -115,10 +114,16 @@ class BundleMCExtractor:
         For bundle diameter: XYZ coordinates of where the center of the
         plane is in which the muon positions get calculated. Should be set
         to the center of the detector!
+    with_mc_index : bool
+        Add a column called mc_index containing the mc run number,
+        which is attempted to be read from the filename. This is for
+        when the same run id/event id combination appears in mc files,
+        which can happend e.g. in run by run simulations when there are
+        multiplie mc runs per data run.
     is_corsika : bool
         Use this when using Corsika!!!
     only_downgoing_tracks : bool
-        For tracks (JG reco), consider only the ones that are downgoing.
+        For the best track (JG reco), consider only the ones that are downgoing.
     missing_value : float
         If a value is missing, use this value instead.
 
@@ -128,24 +133,27 @@ class BundleMCExtractor:
                  inactive_du=1,
                  min_n_mchits_list=(0, 1, 10),
                  plane_point=(17, 17, 111),
-                 is_corsika=True,
+                 with_mc_index=True,
+                 is_corsika=False,
                  only_downgoing_tracks=False,
                  missing_value=np.nan,
                  ):
-        # TODO remove???
-        mc_index = get_mc_index(infile)
-        print(f"Using mc_index {mc_index}")
-
         self.inactive_du = inactive_du
         self.min_n_mchits_list = min_n_mchits_list
         self.plane_point = plane_point
+        self.with_mc_index = with_mc_index
         self.missing_value = missing_value
         self.is_corsika = is_corsika
-        self.mc_index = mc_index
         self.only_downgoing_tracks = only_downgoing_tracks
 
         self.data_extractor = BundleDataExtractor(
             infile, only_downgoing_tracks=only_downgoing_tracks)
+
+        if self.with_mc_index:
+            self.mc_index = get_mc_index(infile)
+            print(f"Using mc_index {self.mc_index}")
+        else:
+            self.mc_index = None
 
     def __call__(self, blob):
         mc_info = self.data_extractor(blob)
@@ -215,7 +223,7 @@ class BundleMCExtractor:
                 mc_info[f"max_pair_dist_{suffix}"] = self.missing_value
                 mc_info[f"mean_pair_dist_{suffix}"] = self.missing_value
 
-        if self.mc_index:
+        if self.with_mc_index:
             mc_info["mc_index"] = self.mc_index
 
         return mc_info
